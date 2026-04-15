@@ -188,32 +188,45 @@ button{
     <div class="btn-row">
         <button onclick="selectAll(true)">全選択</button>
         <button onclick="selectAll(false)">全解除</button>
-        <button onclick="resetAll()">リセット</button>
+        <button onclick="resetAll()">全削除</button>
         <button onclick="changeAllLabelSize()">文字サイズ一括</button>
+        <button onclick="downloadMap()">画像DL</button>
         <button onclick="toggleStarMode()">★モード</button>
+        <button onclick="toggleCircleMode()">◯モード</button>
         <button onclick="hideLabels()">市区町村削除</button>
         <button onclick="showLabels()">市区町村復活</button>
-        <button onclick="downloadMap()">画像DL</button>
     </div>
 
     <span style="font-size:16px; color:#ccc;">
-    ★通常モード<br>
-    ・左クリック：色塗り<br>
-    ・右クリック：色削除<br>
+    ※★モードと◯モードは、両方が同時にONの状態で使用しないでください！
     </span>
 
     <span style="font-size:16px; color:#ccc;">
-    ★市区町村名<br>
+    【市区町村名】<br>
     ・左クリック：サイズ変更<br>
     ・Shift+左クリック：白⇔黒に変更<br>
     ・右クリック：削除<br>
     </span>
 
     <span style="font-size:16px; color:#ccc;">
-    ★星モード<br>
+    【通常モード】<br>
+    ・左クリック：色塗り<br>
+    ・右クリック：色削除<br>
+    </span>
+
+    <span style="font-size:16px; color:#ccc;">
+    【★モード】<br>
     ・地図上で左クリック：星追加<br>
     ・左クリック：サイズ変更<br>
-    ・Shift+左クリック：色変更<br>
+    ・Shift+左クリック：選択中の色に変更<br>
+    ・右クリック：削除
+    </span>
+
+    <span style="font-size:16px; color:#ccc;">
+    【◯モード】<br>
+    ・★の上で左クリック：円追加<br>
+    ・左クリック：サイズ変更<br>
+    ・Shift+左クリック：選択中の色に変更<br>
     ・右クリック：削除
     </span>
 
@@ -255,9 +268,17 @@ let renderedKeys = new Set();
 let used=new Set();
 let starMode=false;
 
+let circleMode = false;
+let circleLayer = L.layerGroup().addTo(map);
+
 function toggleStarMode(){
     starMode=!starMode;
     alert(starMode ? "★モード ON" : "OFF");
+}
+
+function toggleCircleMode(){
+    circleMode = !circleMode;
+    alert(circleMode ? "円モード ON" : "OFF");
 }
 
 function setColor(c){
@@ -473,22 +494,90 @@ function addStar(s){
     });
 
     marker.on('click',(e)=>{
-        if(e.originalEvent.shiftKey){
-            const color = prompt("色(#RRGGBB)",s.color);
-            if(color === null) return;
-            if(!isSafeColor(color)){
-                alert("色は #RRGGBB 形式で入力してください。");
+
+        // =========================
+        // ★ 円モード（星起点）
+        // =========================
+        if(circleMode){
+
+            const km = prompt("この星を中心に半径（km）", 10);
+            if(km === null) return;
+
+            const parsed = Number(km);
+            if(!Number.isFinite(parsed) || parsed <= 0){
+                alert("正しい数値を入力してください");
                 return;
             }
-            s.color=color;
+
+            const meters = parsed * 1000;
+
+            const circle = L.circle([s.lat, s.lng], {
+                radius: meters,
+                color: s.circleColor || currentColor,
+                fillColor: s.circleColor || currentColor,
+                fillOpacity: 0.2,
+                weight: 2
+            }).addTo(circleLayer);
+
+            // =========================
+            // 円の操作
+            // =========================
+            circle.on('click', function(ev){
+
+                const isShift = ev.originalEvent && ev.originalEvent.shiftKey;
+
+                // ★ Shift + 左クリック → 色変更
+                if(isShift){
+
+                    s.circleColor = currentColor;
+                    localStorage.setItem("stars", JSON.stringify(starData));
+
+                    this.setStyle({
+                        color: currentColor,
+                        fillColor: currentColor
+                    });
+
+                    return;
+                }
+
+                // ★ 通常クリック → 半径変更
+                const newKm = prompt("半径（km）", meters / 1000);
+                if(newKm === null) return;
+
+                const val = Number(newKm);
+                if(!Number.isFinite(val) || val <= 0){
+                    alert("正しい数値を入力してください");
+                    return;
+                }
+
+                this.setRadius(val * 1000);
+            });
+
+            circle.on('contextmenu', (ev)=>{
+                ev.originalEvent.preventDefault();
+                circleLayer.removeLayer(circle);
+            });
+
+            return; // ★星処理に流さない
+        }
+
+        // =========================
+        // 既存：星編集
+        // =========================
+        if(e.originalEvent.shiftKey){
+
+            // ★ カラーパレットの色を適用
+            s.color = currentColor;
+
         }else{
+
             const size = prompt("サイズ(px)",s.size);
             const parsedSize = parseFontSize(size);
             if(parsedSize === null){
                 if(size !== null) alert("1〜300 の数字で入力してください。");
                 return;
             }
-            s.size=parsedSize;
+            s.size = parsedSize;
         }
 
         localStorage.setItem("stars",JSON.stringify(starData));
@@ -573,6 +662,9 @@ function resetAll(){
     if(!confirm("全部リセットしますか？")) return;
     const storageKeys = ["colors","sizes","stars","labels","labelVisible","labelColors"];
     storageKeys.forEach((key)=>localStorage.removeItem(key));
+
+    circleLayer.clearLayers(); // ←これ追加
+
     location.reload();
 }
 
