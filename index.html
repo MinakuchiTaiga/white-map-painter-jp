@@ -146,6 +146,20 @@ button{
     white-space: nowrap;
 }
 
+button {
+    padding: 6px 10px;
+    margin: 4px;
+    cursor: pointer;
+    background: #eee;
+    border: 1px solid #ccc;
+}
+
+button.active {
+    background: #0070ff;
+    color: white;
+    border: 1px solid #005bd1;
+}
+
 </style>
 </head>
 
@@ -173,8 +187,8 @@ button{
         <button onclick="resetAll()">全削除</button>
         <button onclick="changeAllLabelSize()">文字サイズ一括</button>
         <button onclick="downloadMap()">画像DL</button>
-        <button onclick="toggleStarMode()">★モード</button>
-        <button onclick="toggleCircleMode()">◯モード</button>
+        <button id="starBtn" onclick="toggleStarMode()">★モード</button>
+        <button id="circleBtn" onclick="toggleCircleMode()">◯モード</button>
         <button onclick="hideLabels()">市区町村削除</button>
         <button onclick="showLabels()">市区町村復活</button>
     </div>
@@ -534,8 +548,34 @@ function addLabelMarker(key, safeName, center){
 /* =====================================================
    星
    ===================================================== */
-function toggleStarMode(){ starMode=!starMode; alert(starMode ? "★モード ON" : "OFF"); }
-function toggleCircleMode(){ circleMode=!circleMode; alert(circleMode ? "円モード ON" : "OFF"); }
+
+function toggleStarMode() {
+    starMode = !starMode;
+
+    document.getElementById("starBtn").classList.toggle("active", starMode);
+
+    // もし排他にしたいなら
+    if (starMode) {
+        circleMode = false;
+        document.getElementById("circleBtn").classList.remove("active");
+    }
+}
+
+/* =====================================================
+   円
+   ===================================================== */
+
+function toggleCircleMode() {
+    circleMode = !circleMode;
+
+    document.getElementById("circleBtn").classList.toggle("active", circleMode);
+
+    // 排他
+    if (circleMode) {
+        starMode = false;
+        document.getElementById("starBtn").classList.remove("active");
+    }
+}
 
 function makeStarIcon(s){
     return L.divIcon({
