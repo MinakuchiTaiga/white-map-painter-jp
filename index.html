@@ -290,6 +290,16 @@ const map = L.map('map',{
     preferCanvas:true
 }).setView([37.5,137],5);
 
+map.createPane("background");
+map.getPane("background").style.zIndex = 200;
+
+map.createPane("shape");
+map.getPane("shape").style.zIndex = 400;
+
+map.createPane("marker");
+map.getPane("marker").style.zIndex = 600;
+
+
 let layerGroup  = L.layerGroup().addTo(map);
 let labelLayer  = L.layerGroup().addTo(map);
 let starLayer   = L.layerGroup().addTo(map);
@@ -642,8 +652,11 @@ function addStar(s){
 function addCircle(s, circleObj){
     const lc = L.circle([circleObj.lat, circleObj.lng], {
         radius: circleObj.radiusKm * 1000,
-        color: circleObj.color, fillColor: circleObj.color,
-        fillOpacity: 0.2, weight: 2
+        color: circleObj.color,
+        fillColor: circleObj.color,
+        fillOpacity: 0.2,
+        weight: 2,
+        pane: "shape"
     }).addTo(circleLayer);
     leafletCircles.set(circleObj, lc);
 
