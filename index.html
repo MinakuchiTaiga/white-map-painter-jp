@@ -20,8 +20,6 @@ body {
 #map {
     flex:1;
     height:100vh;
-    position: relative;
-    z-index: 0;
 }
 .controls{
     width:260px;
@@ -33,8 +31,6 @@ body {
     display:flex;
     flex-direction:column;
     gap:10px;
-    position: relative;
-    z-index: 1000;
 }
 .topbar{
     display:flex;
@@ -140,9 +136,7 @@ button{
     min-height:16px;
     word-break:break-all;
 }
-.leaflet-pane {
-    z-index: 0 !important;
-}
+
 .label-inner{
     display: inline-block;
     transform: translate(-50%, -50%);
@@ -289,16 +283,6 @@ const map = L.map('map',{
     wheelPxPerZoomLevel:200,
     preferCanvas:true
 }).setView([37.5,137],5);
-
-map.createPane("background");
-map.getPane("background").style.zIndex = 200;
-
-map.createPane("shape");
-map.getPane("shape").style.zIndex = 400;
-
-map.createPane("marker");
-map.getPane("marker").style.zIndex = 600;
-
 
 let layerGroup  = L.layerGroup().addTo(map);
 let labelLayer  = L.layerGroup().addTo(map);
@@ -652,11 +636,8 @@ function addStar(s){
 function addCircle(s, circleObj){
     const lc = L.circle([circleObj.lat, circleObj.lng], {
         radius: circleObj.radiusKm * 1000,
-        color: circleObj.color,
-        fillColor: circleObj.color,
-        fillOpacity: 0.2,
-        weight: 2,
-        pane: "shape"
+        color: circleObj.color, fillColor: circleObj.color,
+        fillOpacity: 0.2, weight: 2
     }).addTo(circleLayer);
     leafletCircles.set(circleObj, lc);
 
