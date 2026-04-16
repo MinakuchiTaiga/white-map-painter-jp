@@ -284,6 +284,16 @@ const map = L.map('map',{
     preferCanvas:true
 }).setView([37.5,137],5);
 
+map.createPane("polygonPane");
+map.createPane("circlePane");
+map.createPane("starPane");
+map.createPane("labelPane");
+
+map.getPane("polygonPane").style.zIndex = 300;
+map.getPane("circlePane").style.zIndex = 450;
+map.getPane("starPane").style.zIndex = 500;
+map.getPane("labelPane").style.zIndex = 550;
+
 let layerGroup  = L.layerGroup().addTo(map);
 let labelLayer  = L.layerGroup().addTo(map);
 let starLayer   = L.layerGroup().addTo(map);
@@ -308,6 +318,7 @@ let circleMode   = false;
 let labelMarkers   = {};          /* key -> L.marker */
 let starMarkers    = new Map();   /* starObj -> L.marker */
 let leafletCircles = new Map();   /* circleObj -> L.circle */
+let polygonLayer = L.layerGroup().addTo(map);
 
 /* =====================================================
    保存ユーティリティ
@@ -373,7 +384,7 @@ function getName(f){ return f.properties.N03_005 || f.properties.N03_004; }
    描画
    ===================================================== */
 async function render(){
-    layerGroup.clearLayers();
+    polygonLayer.clearLayers();
     labelLayer.clearLayers();
     labelMarkers = {};
     used.clear();
@@ -393,6 +404,7 @@ async function render(){
             }
 
             L.geoJSON(data, {
+                pane: "polygonPane",
                 style: f => ({
                     color:"#000", weight:1,
                     fillColor: colorData[f.properties.N03_007] || "#fff",
@@ -437,10 +449,14 @@ async function render(){
                         addLabelMarker(key, safeName, center);
                     }
                 }
-            }).addTo(layerGroup);
+            }).addTo(polygonLayer);
 
         } catch(err){ console.error(err); }
     }
+    polygonLayer.bringToBack();
+    circleLayer.bringToFront();
+    starLayer.bringToFront();
+    labelLayer.bringToFront();
 }
 
 /* =====================================================
@@ -457,7 +473,7 @@ function makeLabelIcon(key, safeName){
 }
 
 function addLabelMarker(key, safeName, center){
-    const marker = L.marker(center, { draggable:true, icon: makeLabelIcon(key, safeName) }).addTo(labelLayer);
+    const marker = L.marker(center, { pane: "labelPane", draggable:true, icon: makeLabelIcon(key, safeName) }).addTo(labelLayer);
     labelMarkers[key] = marker;
 
     /* 右クリック削除 */
@@ -551,7 +567,7 @@ map.on('click', e => {
 
 function addStar(s){
     if(!s.circles) s.circles = [];
-    const marker = L.marker([s.lat, s.lng], { draggable:true, icon:makeStarIcon(s) }).addTo(starLayer);
+    const marker = L.marker([s.lat, s.lng], { pane: "starPane", draggable:true, icon:makeStarIcon(s) }).addTo(starLayer);
     starMarkers.set(s, marker);
 
     /* ドラッグ */
@@ -635,6 +651,7 @@ function addStar(s){
    ===================================================== */
 function addCircle(s, circleObj){
     const lc = L.circle([circleObj.lat, circleObj.lng], {
+        pane: "circlePane",
         radius: circleObj.radiusKm * 1000,
         color: circleObj.color, fillColor: circleObj.color,
         fillOpacity: 0.2, weight: 2
