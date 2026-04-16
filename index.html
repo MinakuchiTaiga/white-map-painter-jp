@@ -17,49 +17,40 @@ body {
     font-family:sans-serif;
     display:flex;
 }
-
 #map {
     flex:1;
     height:100vh;
+    position: relative;
+    z-index: 0;
 }
-
-/* ===== コントロール ===== */
 .controls{
     width:260px;
     height:100vh;
     overflow:auto;
-
     padding:10px;
     background:#111;
     color:#fff;
-
     display:flex;
     flex-direction:column;
     gap:10px;
+    position: relative;
+    z-index: 1000;
 }
-
-/* ★ 行分け */
 .topbar{
     display:flex;
     flex-direction:column;
     gap:8px;
 }
-
-/* 色行 */
 .color-row{
     display:flex;
     gap:8px;
     align-items:center;
 }
-
-/* ボタン行 */
 .btn-row{
     display:flex;
     flex-wrap:wrap;
     gap:8px;
 }
-
-/* ===== 色ボタン ===== */
 .color-btn{
     width:26px;
     height:26px;
@@ -68,18 +59,13 @@ body {
     cursor:pointer;
     transition:0.2s;
 }
-
 .color-btn.active{
     border:3px solid #fff;
     transform:scale(1.2);
 }
-
-/* 白用 */
 .color-btn[data-color="#ffffff"]{
     border:2px solid #999;
 }
-
-/* ===== 通常ボタン ===== */
 button{
     cursor:pointer;
     height:38px;
@@ -87,8 +73,6 @@ button{
     border-radius:8px;
     font-size:14px;
 }
-
-/* ===== 都道府県 ===== */
 .pref-list{
     display:flex;
     flex-wrap:wrap;
@@ -96,7 +80,6 @@ button{
     max-height:none;
     overflow:visible;
 }
-
 .pref-list label{
     font-size:12px;
     background:#222;
@@ -104,28 +87,21 @@ button{
     border-radius:6px;
     cursor:pointer;
 }
-
-/* ===== ラベル ===== */
 .label{
     font-weight:bold;
     color:#000;
     text-shadow:1px 1px 2px #fff;
     white-space:nowrap;
     cursor:move;
-
-    /* ★ これ追加（四角消す） */
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
 }
-
-/* 星の四角消す */
 .star-icon{
     background: transparent !important;
     border: none !important;
 }
-
 .star-icon div {
     display:flex;
     align-items:center;
@@ -133,13 +109,11 @@ button{
     width:100%;
     height:100%;
 }
-
 .leaflet-div-icon {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
 }
-
 .color-picker-wrap{
     width:26px;
     height:26px;
@@ -148,23 +122,34 @@ button{
     cursor:pointer;
     position:relative;
     overflow:hidden;
-
-    /* ★ これが重要：虹グラデーション */
-    background: conic-gradient(
-        red, orange, yellow, lime, cyan, blue, violet, red
-    );
+    background: conic-gradient(red, orange, yellow, lime, cyan, blue, violet, red);
 }
-
 .color-picker-wrap.active{
     border:3px solid #fff;
     transform:scale(1.2);
 }
-
 .color-picker-wrap input{
     position:absolute;
     inset:0;
-    opacity:0; /* ★ 見えなくする */
+    opacity:0;
     cursor:pointer;
+}
+#undoStatus{
+    font-size:12px;
+    color:#888;
+    min-height:16px;
+    word-break:break-all;
+}
+.leaflet-pane {
+    z-index: 0 !important;
+}
+.label-inner{
+    display: inline-block;
+    transform: translate(-50%, -50%);
+    position: relative;
+    left: 50%;
+    top: 50%;
+    white-space: nowrap;
 }
 
 </style>
@@ -173,10 +158,8 @@ button{
 <body>
 
 <div class="controls">
-
 <div class="topbar">
 
-    <!-- ★ 色 -->
     <div class="color-row">
         <div class="color-btn" data-color="#e60000" style="background:#e60000" onclick="setColor('#e60000')"></div>
         <div class="color-btn" data-color="#0070ff" style="background:#0070ff" onclick="setColor('#0070ff')"></div>
@@ -185,14 +168,11 @@ button{
         <div class="color-btn" data-color="#ff9900" style="background:#ff9900" onclick="setColor('#ff9900')"></div>
         <div class="color-btn" data-color="#ff66cc" style="background:#ff66cc" onclick="setColor('#ff66cc')"></div>
         <div class="color-btn" data-color="#66ccff" style="background:#66ccff" onclick="setColor('#66ccff')"></div>
-
-        <!-- ★ カラーパレット追加 -->
         <div class="color-picker-wrap">
             <input type="color" id="colorPicker" value="#9900ff" onchange="pickColor(this.value)">
         </div>
     </div>
 
-    <!-- ★ ボタン -->
     <div class="btn-row">
         <button onclick="selectAll(true)">全選択</button>
         <button onclick="selectAll(false)">全解除</button>
@@ -204,6 +184,10 @@ button{
         <button onclick="hideLabels()">市区町村削除</button>
         <button onclick="showLabels()">市区町村復活</button>
     </div>
+
+    <!-- <div id="undoStatus">　</div> -->
+
+    <span style="font-size:14px; color:#aef;">【Ctrl+Z】元に戻す　【Ctrl+Y】やり直し</span>
 
     <span style="font-size:16px; color:#ccc;">
     ※★モードと◯モードは、両方が同時にONの状態で使用しないでください！
@@ -241,12 +225,61 @@ button{
 </div>
 
 <div id="prefList" class="pref-list"></div>
-
 </div>
 
 <div id="map"></div>
 
 <script>
+
+/* =====================================================
+   アンドゥ・リドゥ基盤
+   各操作は pushHistory(説明, undoFn, redoFn) で登録。
+   undo/redo は差分だけを持つクロージャ方式。
+   ===================================================== */
+
+const HISTORY_MAX = 200;
+let undoStack = [];
+let redoStack = [];
+
+function pushHistory(desc, undoFn, redoFn){
+    undoStack.push({ desc, undo: undoFn, redo: redoFn });
+    if(undoStack.length > HISTORY_MAX) undoStack.shift();
+    redoStack = [];
+    updateUndoStatus();
+}
+
+function doUndo(){
+    if(undoStack.length === 0) return;
+    const entry = undoStack.pop();
+    entry.undo();
+    redoStack.push(entry);
+    updateUndoStatus();
+}
+
+function doRedo(){
+    if(redoStack.length === 0) return;
+    const entry = redoStack.pop();
+    entry.redo();
+    undoStack.push(entry);
+    updateUndoStatus();
+}
+
+function updateUndoStatus(){
+    const el = document.getElementById('undoStatus');
+    const u = undoStack.length > 0 ? undoStack[undoStack.length-1].desc : null;
+    const r = redoStack.length > 0 ? redoStack[redoStack.length-1].desc : null;
+    el.textContent = (u ? `↩ ${u}` : '') + (u && r ? '　' : '') + (r ? `↪ ${r}` : '');
+}
+
+document.addEventListener('keydown', e => {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if(ctrl && !e.shiftKey && e.key === 'z'){ e.preventDefault(); doUndo(); }
+    if(ctrl && (e.key === 'y' || (e.shiftKey && e.key === 'z'))){ e.preventDefault(); doRedo(); }
+});
+
+/* =====================================================
+   地図初期化
+   ===================================================== */
 
 const map = L.map('map',{
     zoomControl:true,
@@ -257,58 +290,61 @@ const map = L.map('map',{
     preferCanvas:true
 }).setView([37.5,137],5);
 
-let layerGroup = L.layerGroup().addTo(map);
-let labelLayer = L.layerGroup().addTo(map);
-let starLayer = L.layerGroup().addTo(map);
-
-let geoData=null;
-let currentColor="#e60000";
-
-let colorData=JSON.parse(localStorage.getItem("colors")||"{}");
-let sizeData=JSON.parse(localStorage.getItem("sizes")||"{}");
-let starData=JSON.parse(localStorage.getItem("stars")||"[]");
-let labelPos=JSON.parse(localStorage.getItem("labels")||"{}");
-let labelVisible = JSON.parse(localStorage.getItem("labelVisible") ?? "true");
-let labelColorData = JSON.parse(localStorage.getItem("labelColors")||"{}");
-let geoCache = {};
-let renderedKeys = new Set();
-
-let used=new Set();
-let starMode=false;
-
-let circleMode = false;
+let layerGroup  = L.layerGroup().addTo(map);
+let labelLayer  = L.layerGroup().addTo(map);
+let starLayer   = L.layerGroup().addTo(map);
 let circleLayer = L.layerGroup().addTo(map);
 
-function toggleStarMode(){
-    starMode=!starMode;
-    alert(starMode ? "★モード ON" : "OFF");
-}
+let currentColor = "#e60000";
 
-function toggleCircleMode(){
-    circleMode = !circleMode;
-    alert(circleMode ? "円モード ON" : "OFF");
-}
+let colorData      = JSON.parse(localStorage.getItem("colors")       || "{}");
+let sizeData       = JSON.parse(localStorage.getItem("sizes")        || "{}");
+let starData       = JSON.parse(localStorage.getItem("stars")        || "[]");
+let labelPos       = JSON.parse(localStorage.getItem("labels")       || "{}");
+let labelVisible   = JSON.parse(localStorage.getItem("labelVisible") ?? "true");
+let labelColorData = JSON.parse(localStorage.getItem("labelColors")  || "{}");
 
+let geoCache     = {};
+let renderedKeys = new Set();
+let used         = new Set();
+let starMode     = false;
+let circleMode   = false;
+
+/* Leafletオブジェクト参照 */
+let labelMarkers   = {};          /* key -> L.marker */
+let starMarkers    = new Map();   /* starObj -> L.marker */
+let leafletCircles = new Map();   /* circleObj -> L.circle */
+
+/* =====================================================
+   保存ユーティリティ
+   ===================================================== */
+const saveColors       = () => localStorage.setItem("colors",       JSON.stringify(colorData));
+const saveSizes        = () => localStorage.setItem("sizes",        JSON.stringify(sizeData));
+const saveStars        = () => localStorage.setItem("stars",        JSON.stringify(starData));
+const saveLabels       = () => localStorage.setItem("labels",       JSON.stringify(labelPos));
+const saveLabelColors  = () => localStorage.setItem("labelColors",  JSON.stringify(labelColorData));
+const saveLabelVisible = () => localStorage.setItem("labelVisible", JSON.stringify(labelVisible));
+
+/* =====================================================
+   色選択
+   ===================================================== */
 function setColor(c){
-    currentColor=c;
-
-    document.querySelectorAll('.color-btn').forEach(btn=>{
-        btn.classList.remove('active');
-    });
-
-    document.querySelectorAll('.color-picker-wrap').forEach(p=>{
-        p.classList.remove('active');
-    });
-
+    currentColor = c;
+    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.color-picker-wrap').forEach(p => p.classList.remove('active'));
     const btn = document.querySelector(`[data-color="${c}"]`);
     if(btn) btn.classList.add('active');
 }
-
-function getName(f){
-    return f.properties.N03_005 || f.properties.N03_004;
+function pickColor(color){
+    currentColor = color;
+    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.color-picker-wrap').classList.add('active');
 }
 
-const PREF_ORDER=["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県",
+/* =====================================================
+   都道府県 UI
+   ===================================================== */
+const PREF_ORDER = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県",
 "茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県",
 "新潟県","富山県","石川県","福井県","山梨県","長野県",
 "岐阜県","静岡県","愛知県","三重県",
@@ -318,35 +354,34 @@ const PREF_ORDER=["北海道","青森県","岩手県","宮城県","秋田県","�
 "福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
 
 function createPrefUI(data){
-    const set=new Set(data.features.map(f=>f.properties.N03_001));
-    const container=document.getElementById("prefList");
-
-    PREF_ORDER.forEach(pref=>{
+    const set = new Set(data.features.map(f => f.properties.N03_001));
+    const container = document.getElementById("prefList");
+    PREF_ORDER.forEach(pref => {
         if(!set.has(pref)) return;
-        const label=document.createElement("label");
+        const label = document.createElement("label");
         const input = document.createElement("input");
-        input.type = "checkbox";
-        input.value = pref;
-        input.onchange = render;
+        input.type = "checkbox"; input.value = pref; input.onchange = render;
         label.appendChild(input);
         label.appendChild(document.createTextNode(pref));
         container.appendChild(label);
     });
 }
-
 function getSelected(){
-    return [...document.querySelectorAll("#prefList input:checked")].map(i=>i.value);
+    return [...document.querySelectorAll("#prefList input:checked")].map(i => i.value);
 }
-
 function selectAll(flag){
-    document.querySelectorAll("#prefList input").forEach(i=>i.checked=flag);
+    document.querySelectorAll("#prefList input").forEach(i => i.checked = flag);
     render();
 }
+function getName(f){ return f.properties.N03_005 || f.properties.N03_004; }
 
+/* =====================================================
+   描画
+   ===================================================== */
 async function render(){
-
     layerGroup.clearLayers();
     labelLayer.clearLayers();
+    labelMarkers = {};
     used.clear();
     renderedKeys.clear();
 
@@ -354,7 +389,6 @@ async function render(){
     if(selected.length === 0) return;
 
     for(const pref of selected){
-
         try{
             let data = geoCache[pref];
             if(!data){
@@ -364,352 +398,370 @@ async function render(){
                 geoCache[pref] = data;
             }
 
-            L.geoJSON(data,{
-                style:f=>{
-                    const key=f.properties.N03_007;
-                    return{
-                        color:"#000",
-                        weight:1,
-                        fillColor:colorData[key]||"#fff",
-                        fillOpacity:1
-                    };
-                },
-
-                onEachFeature:(f,layer)=>{
-                    const key=f.properties.N03_007;
-                    const name=getName(f);
+            L.geoJSON(data, {
+                style: f => ({
+                    color:"#000", weight:1,
+                    fillColor: colorData[f.properties.N03_007] || "#fff",
+                    fillOpacity:1
+                }),
+                onEachFeature: (f, layer) => {
+                    const key      = f.properties.N03_007;
+                    const name     = getName(f);
                     const safeName = escapeHtml(name || "");
                     if(!name) return;
                     renderedKeys.add(key);
 
-                    // ===== 色塗り =====
-                    layer.on('click',()=>{
-                        colorData[key]=currentColor;
-                        localStorage.setItem("colors",JSON.stringify(colorData));
-                        layer.setStyle({fillColor:currentColor});
+                    /* 色塗り */
+                    layer.on('click', () => {
+                        if (starMode) return;
+                        const prev = colorData[key] || null;
+                        const next = currentColor;
+                        if(prev === next) return;
+                        colorData[key] = next; saveColors();
+                        layer.setStyle({ fillColor: next });
+                        pushHistory(`色塗り`,
+                            () => { if(prev===null) delete colorData[key]; else colorData[key]=prev; saveColors(); layer.setStyle({fillColor:prev||"#fff"}); },
+                            () => { colorData[key]=next; saveColors(); layer.setStyle({fillColor:next}); }
+                        );
                     });
-
-                    layer.on('contextmenu',(e)=>{
+                    layer.on('contextmenu', e => {
                         e.originalEvent.preventDefault();
-                        delete colorData[key];
-                        localStorage.setItem("colors",JSON.stringify(colorData));
-                        layer.setStyle({fillColor:"#fff"});
+                        const prev = colorData[key] || null;
+                        if(!prev) return;
+                        delete colorData[key]; saveColors();
+                        layer.setStyle({ fillColor: "#fff" });
+                        pushHistory(`色削除`,
+                            () => { colorData[key]=prev; saveColors(); layer.setStyle({fillColor:prev}); },
+                            () => { delete colorData[key]; saveColors(); layer.setStyle({fillColor:"#fff"}); }
+                        );
                     });
 
-                    // ===== ラベル =====
+                    /* ラベル */
                     if(labelVisible && !used.has(key)){
                         used.add(key);
-
-                        let center = labelPos[key] || layer.getBounds().getCenter();
-
-                        const marker = L.marker(center,{
-                            draggable:true,
-                            icon:L.divIcon({
-                                className:'label',
-                                html:`<div style="font-size:${sizeData[key]||12}px;color:${labelColorData[key]||'#000'}">${safeName}</div>`
-                            })
-                        }).addTo(labelLayer);
-
-                        // 右クリック削除
-                        marker.on('contextmenu', e=>{
-                            e.originalEvent.preventDefault();
-                            labelLayer.removeLayer(marker);
-                        });
-
-                        // 左クリック
-                        marker.on('click', (e)=>{
-
-                            // ★ Shiftで色反転
-                            if(e.originalEvent.shiftKey){
-
-                                const current = labelColorData[key] || "#000";
-                                const next = current === "#fff" ? "#000" : "#fff";
-
-                                labelColorData[key] = next;
-                                localStorage.setItem("labelColors", JSON.stringify(labelColorData));
-
-                                marker.setIcon(L.divIcon({
-                                    className:'label',
-                                    html:`<div style="font-size:${sizeData[key]||12}px;color:${next}">${safeName}</div>`
-                                }));
-
-                                return;
-                            }
-
-                            // 通常クリック → サイズ変更
-                            const size = prompt("ラベルサイズ(px)", sizeData[key] || 12);
-                            const parsedSize = parseFontSize(size);
-                            if(parsedSize === null){
-                                if(size !== null) alert("1〜300 の数字で入力してください。");
-                                return;
-                            }
-                            sizeData[key] = parsedSize;
-                            localStorage.setItem("sizes", JSON.stringify(sizeData));
-
-                            marker.setIcon(L.divIcon({
-                                className:'label',
-                                html:`<div style="font-size:${sizeData[key]}px;color:${labelColorData[key]||'#000'}">${safeName}</div>`
-                            }));
-                        });
-
-                        // ドラッグ保存
-                        marker.on('dragend', e=>{
-                            const pos = e.target.getLatLng();
-                            labelPos[key] = {lat:pos.lat,lng:pos.lng};
-                            localStorage.setItem("labels", JSON.stringify(labelPos));
-                        });
+                        const center = labelPos[key] || layer.getBounds().getCenter();
+                        addLabelMarker(key, safeName, center);
                     }
                 }
-
             }).addTo(layerGroup);
 
-        }catch(err){
-            console.error(err);
-        }
+        } catch(err){ console.error(err); }
     }
 }
 
-// 星
-map.on('click', e=>{
+/* =====================================================
+   ラベルマーカー生成
+   ===================================================== */
+function makeLabelIcon(key, safeName){
+    return L.divIcon({
+        className:'label',
+        html:`<div class="label-inner"
+            style="font-size:${sizeData[key]||12}px;color:${labelColorData[key]||'#000'}">
+            ${safeName}
+        </div>`
+    });
+}
+
+function addLabelMarker(key, safeName, center){
+    const marker = L.marker(center, { draggable:true, icon: makeLabelIcon(key, safeName) }).addTo(labelLayer);
+    labelMarkers[key] = marker;
+
+    /* 右クリック削除 */
+    marker.on('contextmenu', e => {
+        e.originalEvent.preventDefault();
+        labelLayer.removeLayer(marker);
+        delete labelMarkers[key];
+        const pos = marker.getLatLng();
+        pushHistory(`ラベル削除`,
+            () => { addLabelMarker(key, safeName, pos); },
+            () => { if(labelMarkers[key]){ labelLayer.removeLayer(labelMarkers[key]); delete labelMarkers[key]; } }
+        );
+    });
+
+    /* 左クリック */
+    marker.on('click', e => {
+        /* Shift → 白黒反転 */
+        if(e.originalEvent.shiftKey){
+            const prev = labelColorData[key] || "#000";
+            const next = prev === "#fff" ? "#000" : "#fff";
+            labelColorData[key] = next; saveLabelColors();
+            marker.setIcon(makeLabelIcon(key, safeName));
+            pushHistory(`ラベル色変更`,
+                () => { labelColorData[key]=prev; saveLabelColors(); if(labelMarkers[key]) labelMarkers[key].setIcon(makeLabelIcon(key,safeName)); },
+                () => { labelColorData[key]=next; saveLabelColors(); if(labelMarkers[key]) labelMarkers[key].setIcon(makeLabelIcon(key,safeName)); }
+            );
+            return;
+        }
+        /* サイズ変更 */
+        const input = prompt("ラベルサイズ(px)", sizeData[key] || 12);
+        const next = parseFontSize(input);
+        if(next === null){ if(input !== null) alert("1〜300 の数字で入力してください。"); return; }
+        const prev = sizeData[key] || 12;
+        sizeData[key] = next; saveSizes();
+        marker.setIcon(makeLabelIcon(key, safeName));
+        pushHistory(`ラベルサイズ変更`,
+            () => { sizeData[key]=prev; saveSizes(); if(labelMarkers[key]) labelMarkers[key].setIcon(makeLabelIcon(key,safeName)); },
+            () => { sizeData[key]=next; saveSizes(); if(labelMarkers[key]) labelMarkers[key].setIcon(makeLabelIcon(key,safeName)); }
+        );
+    });
+
+    /* ドラッグ */
+    let dragFrom = null;
+    marker.on('dragstart', () => { dragFrom = marker.getLatLng(); });
+    marker.on('dragend', e => {
+        const to   = e.target.getLatLng();
+        const from = dragFrom;
+        labelPos[key] = { lat:to.lat, lng:to.lng }; saveLabels();
+        pushHistory(`ラベル移動`,
+            () => { labelPos[key]={lat:from.lat,lng:from.lng}; saveLabels(); if(labelMarkers[key]) labelMarkers[key].setLatLng(from); },
+            () => { labelPos[key]={lat:to.lat,lng:to.lng};     saveLabels(); if(labelMarkers[key]) labelMarkers[key].setLatLng(to);   }
+        );
+    });
+
+    return marker;
+}
+
+/* =====================================================
+   星
+   ===================================================== */
+function toggleStarMode(){ starMode=!starMode; alert(starMode ? "★モード ON" : "OFF"); }
+function toggleCircleMode(){ circleMode=!circleMode; alert(circleMode ? "円モード ON" : "OFF"); }
+
+function makeStarIcon(s){
+    return L.divIcon({
+        className:'star-icon',
+        html:`<div style="font-size:${s.size}px;color:${s.color};text-shadow:1px 1px 2px #000;">★</div>`,
+        iconAnchor:null
+    });
+}
+
+map.on('click', e => {
     if(!starMode) return;
+    const input = prompt("星サイズ(px)", 20);
+    const sz = parseFontSize(input);
+    if(sz === null){ if(input !== null) alert("1〜300 の数字で入力してください。"); return; }
 
-    const size = prompt("星サイズ(px)",20);
-    const parsedSize = parseFontSize(size);
-    if(parsedSize === null){
-        if(size !== null) alert("1〜300 の数字で入力してください。");
-        return;
-    }
-
-    const s={lat:e.latlng.lat,lng:e.latlng.lng,size:parsedSize,color:"#ffd700"};
-    starData.push(s);
-    localStorage.setItem("stars",JSON.stringify(starData));
+    const s = { lat:e.latlng.lat, lng:e.latlng.lng, size:sz, color:"#ffd700", circles:[] };
+    starData.push(s); saveStars();
     addStar(s);
+
+    pushHistory(`★追加`,
+        () => {
+            const i = starData.indexOf(s); if(i!==-1) starData.splice(i,1); saveStars();
+            if(starMarkers.has(s)){ starLayer.removeLayer(starMarkers.get(s)); starMarkers.delete(s); }
+            (s.circles||[]).forEach(c => { if(leafletCircles.has(c)){ circleLayer.removeLayer(leafletCircles.get(c)); leafletCircles.delete(c); } });
+        },
+        () => { starData.push(s); saveStars(); addStar(s); (s.circles||[]).forEach(c => addCircle(s,c)); }
+    );
 });
 
 function addStar(s){
-    const marker=L.marker([s.lat,s.lng],{
-        draggable:true,
-        icon: L.divIcon({
-            className: 'star-icon',
-            html: `<div style="font-size:${s.size}px;color:${s.color};text-shadow:1px 1px 2px #000;">★</div>`,
-            iconAnchor: null
-        })
-    }).addTo(starLayer);
+    if(!s.circles) s.circles = [];
+    const marker = L.marker([s.lat, s.lng], { draggable:true, icon:makeStarIcon(s) }).addTo(starLayer);
+    starMarkers.set(s, marker);
 
-    marker.on('dragend',e=>{
-        s.lat=e.target.getLatLng().lat;
-        s.lng=e.target.getLatLng().lng;
-        localStorage.setItem("stars",JSON.stringify(starData));
+    /* ドラッグ */
+    let dragFrom = null;
+    marker.on('dragstart', () => { dragFrom = marker.getLatLng(); });
+    marker.on('dragend', e => {
+        const to = e.target.getLatLng(), from = dragFrom;
+        s.lat = to.lat; s.lng = to.lng; saveStars();
+        pushHistory(`★移動`,
+            () => { s.lat=from.lat; s.lng=from.lng; saveStars(); if(starMarkers.has(s)) starMarkers.get(s).setLatLng(from); },
+            () => { s.lat=to.lat;   s.lng=to.lng;   saveStars(); if(starMarkers.has(s)) starMarkers.get(s).setLatLng(to);   }
+        );
     });
 
-    marker.on('click',(e)=>{
+    /* クリック */
+    marker.on('click', e => {
 
-        // =========================
-        // ★ 円モード（星起点）
-        // =========================
+        /* 円モード */
         if(circleMode){
-
             const km = prompt("この星を中心に半径（km）", 10);
             if(km === null) return;
-
-            const parsed = Number(km);
-            if(!Number.isFinite(parsed) || parsed <= 0){
-                alert("正しい数値を入力してください");
-                return;
-            }
-
-            const meters = parsed * 1000;
-
-            const circle = L.circle([s.lat, s.lng], {
-                radius: meters,
-                color: s.circleColor || currentColor,
-                fillColor: s.circleColor || currentColor,
-                fillOpacity: 0.2,
-                weight: 2
-            }).addTo(circleLayer);
-
-            // =========================
-            // 円の操作
-            // =========================
-            circle.on('click', function(ev){
-
-                const isShift = ev.originalEvent && ev.originalEvent.shiftKey;
-
-                // ★ Shift + 左クリック → 色変更
-                if(isShift){
-
-                    s.circleColor = currentColor;
-                    localStorage.setItem("stars", JSON.stringify(starData));
-
-                    this.setStyle({
-                        color: currentColor,
-                        fillColor: currentColor
-                    });
-
-                    return;
-                }
-
-                // ★ 通常クリック → 半径変更
-                const newKm = prompt("半径（km）", meters / 1000);
-                if(newKm === null) return;
-
-                const val = Number(newKm);
-                if(!Number.isFinite(val) || val <= 0){
-                    alert("正しい数値を入力してください");
-                    return;
-                }
-
-                this.setRadius(val * 1000);
-            });
-
-            circle.on('contextmenu', (ev)=>{
-                ev.originalEvent.preventDefault();
-                circleLayer.removeLayer(circle);
-            });
-
-            return; // ★星処理に流さない
+            const r = Number(km);
+            if(!Number.isFinite(r) || r <= 0){ alert("正しい数値を入力してください"); return; }
+            const c = { lat:s.lat, lng:s.lng, radiusKm:r, color:currentColor };
+            s.circles.push(c); saveStars(); addCircle(s,c);
+            pushHistory(`円追加`,
+                () => { const i=s.circles.indexOf(c); if(i!==-1) s.circles.splice(i,1); saveStars(); if(leafletCircles.has(c)){ circleLayer.removeLayer(leafletCircles.get(c)); leafletCircles.delete(c); } },
+                () => { s.circles.push(c); saveStars(); addCircle(s,c); }
+            );
+            return;
         }
 
-        // =========================
-        // 既存：星編集
-        // =========================
+        /* Shift → 色変更 */
         if(e.originalEvent.shiftKey){
-
-            // ★ カラーパレットの色を適用
-            s.color = currentColor;
-
-        }else{
-
-            const size = prompt("サイズ(px)",s.size);
-            const parsedSize = parseFontSize(size);
-            if(parsedSize === null){
-                if(size !== null) alert("1〜300 の数字で入力してください。");
-                return;
-            }
-            s.size = parsedSize;
+            const prev = s.color, next = currentColor;
+            s.color = next; saveStars();
+            marker.setIcon(makeStarIcon(s));
+            pushHistory(`★色変更`,
+                () => { s.color=prev; saveStars(); if(starMarkers.has(s)) starMarkers.get(s).setIcon(makeStarIcon(s)); },
+                () => { s.color=next; saveStars(); if(starMarkers.has(s)) starMarkers.get(s).setIcon(makeStarIcon(s)); }
+            );
+            return;
         }
 
-        localStorage.setItem("stars",JSON.stringify(starData));
-
-        marker.setIcon(L.divIcon({
-            className:'star-icon',
-            html:`<div style="font-size:${s.size}px;color:${s.color};text-shadow:1px 1px 2px #000;">★</div>`
-        }));
+        /* サイズ変更 */
+        const input = prompt("サイズ(px)", s.size);
+        const next = parseFontSize(input);
+        if(next === null){ if(input !== null) alert("1〜300 の数字で入力してください。"); return; }
+        const prev = s.size;
+        s.size = next; saveStars();
+        marker.setIcon(makeStarIcon(s));
+        pushHistory(`★サイズ変更`,
+            () => { s.size=prev; saveStars(); if(starMarkers.has(s)) starMarkers.get(s).setIcon(makeStarIcon(s)); },
+            () => { s.size=next; saveStars(); if(starMarkers.has(s)) starMarkers.get(s).setIcon(makeStarIcon(s)); }
+        );
     });
 
-    marker.on('contextmenu',e=>{
+    /* 右クリック削除 */
+    marker.on('contextmenu', e => {
         e.originalEvent.preventDefault();
-        const idx = starData.indexOf(s);
-        if(idx !== -1){
-            starData.splice(idx,1);
-            localStorage.setItem("stars",JSON.stringify(starData));
+        const i = starData.indexOf(s); if(i!==-1) starData.splice(i,1); saveStars();
+        starLayer.removeLayer(marker); starMarkers.delete(s);
+        (s.circles||[]).forEach(c => { if(leafletCircles.has(c)){ circleLayer.removeLayer(leafletCircles.get(c)); leafletCircles.delete(c); } });
+        pushHistory(`★削除`,
+            () => { starData.push(s); saveStars(); addStar(s); (s.circles||[]).forEach(c => addCircle(s,c)); },
+            () => {
+                const j=starData.indexOf(s); if(j!==-1) starData.splice(j,1); saveStars();
+                if(starMarkers.has(s)){ starLayer.removeLayer(starMarkers.get(s)); starMarkers.delete(s); }
+                (s.circles||[]).forEach(c => { if(leafletCircles.has(c)){ circleLayer.removeLayer(leafletCircles.get(c)); leafletCircles.delete(c); } });
+            }
+        );
+    });
+
+    /* 既存の円を復元 */
+    s.circles.forEach(c => addCircle(s, c));
+    return marker;
+}
+
+/* =====================================================
+   円
+   ===================================================== */
+function addCircle(s, circleObj){
+    const lc = L.circle([circleObj.lat, circleObj.lng], {
+        radius: circleObj.radiusKm * 1000,
+        color: circleObj.color, fillColor: circleObj.color,
+        fillOpacity: 0.2, weight: 2
+    }).addTo(circleLayer);
+    leafletCircles.set(circleObj, lc);
+
+    /* クリック */
+    lc.on('click', function(ev){
+        /* Shift → 色変更 */
+        if(ev.originalEvent && ev.originalEvent.shiftKey){
+            const prev = circleObj.color, next = currentColor;
+            circleObj.color = next; saveStars();
+            this.setStyle({ color:next, fillColor:next });
+            pushHistory(`円色変更`,
+                () => { circleObj.color=prev; saveStars(); if(leafletCircles.has(circleObj)) leafletCircles.get(circleObj).setStyle({color:prev,fillColor:prev}); },
+                () => { circleObj.color=next; saveStars(); if(leafletCircles.has(circleObj)) leafletCircles.get(circleObj).setStyle({color:next,fillColor:next}); }
+            );
+            return;
         }
-        starLayer.removeLayer(marker);
-    });
-}
-
-// DL
-function downloadMap(){
-    html2canvas(document.getElementById("map"),{
-        useCORS:true,
-        scale:2,
-        backgroundColor:null
-    }).then(canvas=>{
-        const link=document.createElement("a");
-        link.download="japan_map.png";
-        link.href=canvas.toDataURL("image/png");
-        link.click();
-    });
-}
-
-function hideLabels(){
-    labelVisible = false;
-    localStorage.setItem("labelVisible", JSON.stringify(labelVisible));
-    labelLayer.clearLayers();
-}
-
-function showLabels(){
-    labelVisible = true;
-    localStorage.setItem("labelVisible", JSON.stringify(labelVisible));
-    render(); // 再描画で復活
-}
-
-function pickColor(color){
-    currentColor = color;
-
-    // 他の選択解除
-    document.querySelectorAll('.color-btn').forEach(btn=>{
-        btn.classList.remove('active');
+        /* 半径変更 */
+        const input = prompt("半径（km）", circleObj.radiusKm);
+        if(input === null) return;
+        const val = Number(input);
+        if(!Number.isFinite(val) || val <= 0){ alert("正しい数値を入力してください"); return; }
+        const prev = circleObj.radiusKm, next = val;
+        circleObj.radiusKm = next; saveStars();
+        this.setRadius(next * 1000);
+        pushHistory(`円半径変更`,
+            () => { circleObj.radiusKm=prev; saveStars(); if(leafletCircles.has(circleObj)) leafletCircles.get(circleObj).setRadius(prev*1000); },
+            () => { circleObj.radiusKm=next; saveStars(); if(leafletCircles.has(circleObj)) leafletCircles.get(circleObj).setRadius(next*1000); }
+        );
     });
 
-    // パレットをアクティブ化
-    document.querySelector('.color-picker-wrap').classList.add('active');
+    /* 右クリック削除 */
+    lc.on('contextmenu', ev => {
+        ev.originalEvent.preventDefault();
+        circleLayer.removeLayer(lc); leafletCircles.delete(circleObj);
+        const i = s.circles ? s.circles.indexOf(circleObj) : -1;
+        if(i !== -1) s.circles.splice(i,1); saveStars();
+        pushHistory(`円削除`,
+            () => { if(!s.circles) s.circles=[]; s.circles.push(circleObj); saveStars(); addCircle(s,circleObj); },
+            () => { const j=s.circles?s.circles.indexOf(circleObj):-1; if(j!==-1) s.circles.splice(j,1); saveStars(); if(leafletCircles.has(circleObj)){ circleLayer.removeLayer(leafletCircles.get(circleObj)); leafletCircles.delete(circleObj); } }
+        );
+    });
+
+    return lc;
 }
 
+/* =====================================================
+   一括ラベルサイズ変更
+   ===================================================== */
 function changeAllLabelSize(){
-    const size = prompt("全ラベルサイズ(px)", 12);
-    const parsedSize = parseFontSize(size);
-    if(parsedSize === null){
-        if(size !== null) alert("1〜300 の数字で入力してください。");
-        return;
-    }
-    if(renderedKeys.size === 0){
-        alert("先に都道府県を選択してください。");
-        return;
-    }
+    const input = prompt("全ラベルサイズ(px)", 12);
+    const next = parseFontSize(input);
+    if(next === null){ if(input !== null) alert("1〜300 の数字で入力してください。"); return; }
+    if(renderedKeys.size === 0){ alert("先に都道府県を選択してください。"); return; }
 
-    renderedKeys.forEach(key=>{
-        sizeData[key] = parsedSize;
-    });
+    const prevSizes = {};
+    renderedKeys.forEach(k => { prevSizes[k] = sizeData[k] || 12; });
+    renderedKeys.forEach(k => { sizeData[k] = next; });
+    saveSizes(); render();
 
-    localStorage.setItem("sizes", JSON.stringify(sizeData));
-
-    render(); // 再描画
+    pushHistory(`文字サイズ一括`,
+        () => { renderedKeys.forEach(k => { sizeData[k]=prevSizes[k]; }); saveSizes(); render(); },
+        () => { renderedKeys.forEach(k => { sizeData[k]=next; }); saveSizes(); render(); }
+    );
 }
 
+/* =====================================================
+   ラベル表示切替
+   ===================================================== */
+function hideLabels(){
+    const prev = labelVisible;
+    labelVisible = false; saveLabelVisible(); labelLayer.clearLayers(); labelMarkers = {};
+    pushHistory(`市区町村削除`,
+        () => { labelVisible=prev; saveLabelVisible(); render(); },
+        () => { labelVisible=false; saveLabelVisible(); labelLayer.clearLayers(); labelMarkers={}; }
+    );
+}
+function showLabels(){
+    const prev = labelVisible;
+    labelVisible = true; saveLabelVisible(); render();
+    pushHistory(`市区町村復活`,
+        () => { labelVisible=prev; saveLabelVisible(); render(); },
+        () => { labelVisible=true; saveLabelVisible(); render(); }
+    );
+}
+
+/* =====================================================
+   その他
+   ===================================================== */
+function downloadMap(){
+    html2canvas(document.getElementById("map"),{ useCORS:true, scale:2, backgroundColor:null }).then(canvas=>{
+        const a = document.createElement("a");
+        a.download = "japan_map.png"; a.href = canvas.toDataURL("image/png"); a.click();
+    });
+}
 function resetAll(){
     if(!confirm("全部リセットしますか？")) return;
-    const storageKeys = ["colors","sizes","stars","labels","labelVisible","labelColors"];
-    storageKeys.forEach((key)=>localStorage.removeItem(key));
-
-    circleLayer.clearLayers(); // ←これ追加
-
-    location.reload();
+    ["colors","sizes","stars","labels","labelVisible","labelColors"].forEach(k => localStorage.removeItem(k));
+    circleLayer.clearLayers(); location.reload();
 }
-
-function escapeHtml(value){
-    return String(value).replace(/[&<>"']/g, (ch)=>{
-        const map = {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"};
-        return map[ch];
-    });
+function escapeHtml(v){
+    return String(v).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 }
-
 function parseFontSize(value){
     if(value === null) return null;
-    const trimmed = String(value).trim();
-    if(trimmed.length === 0) return null;
-    const num = Number(trimmed);
-    if(!Number.isInteger(num)) return null;
-    if(num < 1 || num > 300) return null;
-    return num;
+    const t = String(value).trim();
+    if(!t.length) return null;
+    const n = Number(t);
+    if(!Number.isInteger(n) || n < 1 || n > 300) return null;
+    return n;
 }
 
-function isSafeColor(value){
-    return /^#[0-9a-fA-F]{6}$/.test(String(value).trim());
-}
-
-createPrefUI({
-    features: PREF_ORDER.map(p=>({
-        properties:{ N03_001: p }
-    }))
-});
-
-// 初期色
-setTimeout(()=>setColor(currentColor),100);
-
-starData.forEach(addStar);
+/* =====================================================
+   起動
+   ===================================================== */
+createPrefUI({ features: PREF_ORDER.map(p => ({ properties:{ N03_001:p } })) });
+setTimeout(() => setColor(currentColor), 100);
+starData.forEach(s => addStar(s));
 
 </script>
-
 </body>
 </html>
